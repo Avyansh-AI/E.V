@@ -1,0 +1,10 @@
+{
+    "_comment": "Optional Firebase configuration for the local dashboard. Replace every value below with your own project's settings (Firebase console -> Project settings -> Web app), then rename this file to firebase_config.json. Leave it as-is to keep Firebase disabled.",
+    "apiKey": "REPLACE_WITH_YOUR_FIREBASE_API_KEY",
+    "authDomain": "your-project-id.firebaseapp.com",
+    "projectId": "your-project-id",
+    "storageBucket": "your-project-id.firebasestorage.app",
+    "messagingSenderId": "REPLACE_WITH_YOUR_SENDER_ID",
+    "appId": "REPLACE_WITH_YOUR_APP_ID",
+    "measurementId": "REPLACE_WITH_YOUR_MEASUREMENT_ID"
+}
