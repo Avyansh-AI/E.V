@@ -11,11 +11,9 @@ import zipfile
 from pathlib import Path
 from typing import Callable, Optional
 
-# Point these at the repository that hosts your copy of E.V. (owner/name).
-GITHUB_REPO = "Avyansh-AI/E.V"
-GITHUB_REPO_URL = f"https://github.com/{GITHUB_REPO}"
-GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/commits/main"
-GITHUB_ZIP_URL = f"https://github.com/{GITHUB_REPO}/archive/refs/heads/main.zip"
+GITHUB_REPO_URL = "https://github.com/titechprabhasolutions/E.V.-AI---Lite"
+GITHUB_API_URL = "https://api.github.com/repos/titechprabhasolutions/E.V.-AI---Lite/commits/main"
+GITHUB_ZIP_URL = "https://github.com/titechprabhasolutions/E.V.-AI---Lite/archive/refs/heads/main.zip"
 
 
 class AutoUpdater:
@@ -110,10 +108,8 @@ class AutoUpdater:
 
                 extracted_root = Path(temp_dir)
                 repo_dir = None
-                repo_name = GITHUB_REPO.split("/")[-1]
                 for candidate in extracted_root.iterdir():
-                    if candidate.is_dir() and (candidate.name == repo_name
-                                               or candidate.name.startswith(f"{repo_name}-")):
+                    if candidate.is_dir() and candidate.name.startswith("E.V.-AI---Lite"):
                         repo_dir = candidate
                         break
 

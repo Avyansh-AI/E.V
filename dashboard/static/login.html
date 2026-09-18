@@ -156,7 +156,7 @@
   <script>
     // Try auto-reconnect with stored device token (set on first QR login)
     (async function() {
-      const devTok = localStorage.getItem('jarvis_device_token');
+      const devTok = localStorage.getItem('ev_device_token');
       if (!devTok) return;
       document.getElementById('reconnecting').style.display = 'block';
       try {
@@ -167,14 +167,14 @@
         });
         const d = await r.json();
         if (d.ok && d.token) {
-          sessionStorage.setItem('jarvis_key', d.key);
-          sessionStorage.setItem('jarvis_token', d.token);
+          sessionStorage.setItem('ev_key', d.key);
+          sessionStorage.setItem('ev_token', d.token);
           location.replace('/');
           return;
         }
       } catch (_) {}
       // Device token rejected (server restarted) — clear it and show normal form
-      localStorage.removeItem('jarvis_device_token');
+      localStorage.removeItem('ev_device_token');
       document.getElementById('reconnecting').style.display = 'none';
     })();
 
@@ -203,8 +203,8 @@
         shake(); return;
       }
       if (data.ok && data.token) {
-        sessionStorage.setItem('jarvis_key', key);
-        sessionStorage.setItem('jarvis_token', data.token);
+        sessionStorage.setItem('ev_key', key);
+        sessionStorage.setItem('ev_token', data.token);
         location.href = '/';
       } else {
         inp.value = '';

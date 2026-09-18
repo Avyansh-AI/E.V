@@ -13,7 +13,13 @@ from typing import Callable
 
 import mss
 import mss.tools
-import sounddevice as sd
+
+# Audio capture is optional: without PortAudio the meeting assistant still
+# loads, reports no usable device and simply stays idle.
+try:
+    import sounddevice as sd
+except Exception:  # pragma: no cover - depends on host audio stack
+    sd = None
 from google import genai
 from google.genai import types
 

@@ -1,8 +1,11 @@
 """
 dashboard/server.py — E.V. Local HTTP Dashboard
 
-Plain HTTP on port 8000 (no SSL warnings, no firewall issues).
-Security at the application layer: AES-256-CBC with session-key-derived key.
+Plain HTTP on port 8000 so phones get no self-signed-certificate warnings.
+LAN access is opened on a best-effort basis (Windows netsh / macOS socketfilterfw
+/ Linux firewalld-iptables); an optional HTTPS alias on port 8001 uses a locally
+generated certificate. Security at the application layer: AES-256-CBC with a
+session-key-derived key.
 CryptoJS is auto-downloaded once and served locally — no CDN needed after that.
 
 Install deps:  pip install fastapi "uvicorn[standard]" cryptography
@@ -430,11 +433,16 @@ def _read(name: str) -> str:
     return (STATIC_DIR / name).read_text(encoding="utf-8")
 
 
+def _cert_paths() -> tuple[Path, Path]:
+    """Return the local TLS key/certificate paths used by the HTTPS alias."""
+    certs = BASE_DIR / "config" / "certs"
+    return certs / "ev.key", certs / "ev.crt"
+
+
 def _ensure_ssl_certs() -> bool:
     """Create local self-signed certs when missing so phones can use HTTPS."""
-    certs = BASE_DIR / "config" / "certs"
-    key_path = certs / "jarvis.key"
-    cert_path = certs / "jarvis.crt"
+    key_path, cert_path = _cert_paths()
+    certs = key_path.parent
     if key_path.exists() and cert_path.exists():
         return True
     try:
@@ -648,9 +656,9 @@ class DashboardServer:
 </style></head>
 <body>
 <script>
-  sessionStorage.setItem('jarvis_token','{tok}');
-  sessionStorage.setItem('jarvis_key','{key}');
-  localStorage.setItem('jarvis_device_token','{dev_tok}');
+  sessionStorage.setItem('ev_token','{tok}');
+  sessionStorage.setItem('ev_key','{key}');
+  localStorage.setItem('ev_device_token','{dev_tok}');
   setTimeout(function(){{location.replace('/')}},400);
 </script>
 <p>Connecting to E.V.…</p>
@@ -863,8 +871,10 @@ class DashboardServer:
     # ── serve ─────────────────────────────────────────────────────────────
     async def _serve_alias(self) -> None:
         """Legacy HTTPS alias server kept for compatibility, but not used for QR pairing."""
-        ssl_key  = BASE_DIR / "config" / "certs" / "jarvis.key"
-        ssl_cert = BASE_DIR / "config" / "certs" / "jarvis.crt"
+        if not _ensure_ssl_certs():
+            print("[Dashboard] HTTPS alias skipped - certificate unavailable.")
+            return
+        ssl_key, ssl_cert = _cert_paths()
         asyncio.get_event_loop().run_in_executor(None, _ensure_network_access, PORT + 1)
         cfg = uvicorn.Config(
             self.app, host="0.0.0.0", port=PORT + 1, log_level="warning",

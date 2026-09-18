@@ -13,10 +13,12 @@ config/api_keys.json
 config/app_settings.json
 config/discord_bot.json
 config/firebase_config.json
+config/.runtime_shortcut.ps1
 config/workspace_store.sqlite3*
 config/smart_home.*
 config/ppt_template_cache/
 config/.bootstrap_done
+config/.desktop_shortcut_created
 config/certs/
 memory/long_term.json
 

@@ -56,6 +56,11 @@ LOGO_ICO   = BASE_DIR / "assets" / "ev_logo.ico"
 BACKGROUND_IMAGE_FILE = BASE_DIR / "assets" / "background.png"
 MODEL_DOWNLOAD_URL = "https://storage.googleapis.com/mediapipe-assets/hand_landmarker.task"
 
+# Single source of truth for the About / System pages.
+APP_VERSION  = "1.0.0"
+APP_BUILD    = "2026.06.29"
+APP_RELEASED = "29 Jun 2026"
+
 _DEFAULT_W, _DEFAULT_H = 1500, 840
 _MIN_W,     _MIN_H     = 1180, 720
 _SETTINGS_CATEGORIES = (
@@ -758,33 +763,26 @@ def _quote_cmd_arg(path: str) -> str:
     return f'"{path}"'
 
 
-def _pythonw_executable() -> Path:
-    """Windowless interpreter next to the running one, when it exists."""
-    exe = Path(sys.executable)
-    candidates = [
-        exe.with_name("pythonw.exe"),
-        exe.parent.parent / "pythonw.exe",          # virtualenv layout
-    ]
-    for candidate in candidates:
-        try:
-            if candidate.exists():
-                return candidate
-        except OSError:
-            continue
-    return exe
-
-
 def _hidden_launch_args(*extra_args: str) -> list[str]:
+    pythonw = Path(r"C:\Users\ravit\AppData\Local\Programs\Python\Python313\pythonw.exe")
+    python = Path(sys.executable)
+    main_py = BASE_DIR / "main.py"
     if getattr(sys, "frozen", False):
-        return [str(Path(sys.executable)), *extra_args]
-    return [str(_pythonw_executable()), str(BASE_DIR / "main.py"), *extra_args]
+        exe = Path(sys.executable)
+        return [str(exe), *extra_args]
+    if pythonw.exists():
+        return [str(pythonw), str(main_py), *extra_args]
+    return [str(python), str(main_py), *extra_args]
 
 def _startup_run_value() -> str:
     if getattr(sys, "frozen", False):
         exe = Path(sys.executable)
         return f'{_quote_cmd_arg(str(exe))} --startup'
+    pythonw = Path(r"C:\Users\ravit\AppData\Local\Programs\Python\Python313\pythonw.exe")
     main_py = BASE_DIR / "main.py"
-    return f'{_quote_cmd_arg(str(_pythonw_executable()))} {_quote_cmd_arg(str(main_py))} --startup'
+    if pythonw.exists():
+        return f'{_quote_cmd_arg(str(pythonw))} {_quote_cmd_arg(str(main_py))} --startup'
+    return f'{_quote_cmd_arg(sys.executable)} {_quote_cmd_arg(str(main_py))} --startup'
 
 
 def _startup_registry_key():
@@ -1567,7 +1565,7 @@ class GestureCameraPreview(QFrame):
                 except Exception:
                     confidence = 1.0 if landmarks else 0.0
 
-        gesture = estimate_gesture_state(landmarks, None, self._prev_pinch)
+        gesture = estimate_gesture_state(landmarks, self._prev_pinch)
         if gesture.get("cursor"):
             norm = self._calibrate_and_smooth_cursor(gesture["cursor"])
             self._move_cursor(norm)
@@ -1943,7 +1941,7 @@ class MetricBar(QWidget):
         super().__init__(parent)
         self._label = label
         self._color = color
-        self._value = 0.0       # 0–100
+        self._value = 0.0       # 0-100
         self._text  = "--"
         self.setFixedHeight(38)
         self.setMinimumWidth(80)
@@ -3161,20 +3159,21 @@ class ChatBubble(QFrame):
             self._render_text(self._full_text)
 
     def _fit_to_content(self):
+        """Size the message so nothing is cut off, measuring at the final width."""
         try:
-            doc = self._browser.document()
             viewport = self.parentWidget()
             while viewport is not None and not hasattr(viewport, "viewport"):
                 viewport = viewport.parentWidget()
             viewport_width = viewport.viewport().width() if viewport and hasattr(viewport, "viewport") else self.width()
             ratio = 0.94 if self._role == "assistant" else 0.66
             width = max(240, min(int(viewport_width * ratio), max(260, viewport_width - 120)))
+            if self._browser.width() != width:
+                self._browser.setFixedWidth(width)
+            doc = self._browser.document()
             doc.setTextWidth(width)
-            doc.adjustSize()
-            height = int(doc.size().height()) + 6
-            self._browser.setFixedWidth(width)
+            height = max(22, int(doc.size().height()) + 8)
             self._browser.setMinimumHeight(height)
-            self._browser.setMaximumHeight(max(height, 22))
+            self._browser.setMaximumHeight(height)
         except Exception:
             pass
 
@@ -4939,12 +4938,12 @@ class LogWidget(QScrollArea):
         return line["role"], line["name"], line["body"]
 
 _FILE_ICONS = {
-    "image":   ("▣", "#00d4ff"), "video":   ("▶", "#ff9a5c"),
-    "audio":   ("♪", "#b98cff"), "pdf":     ("▤", "#ff5f6d"),
-    "word":    ("▥", "#4488ff"), "excel":   ("▦", "#44bb44"),
-    "code":    ("⌗", "#ffb648"), "archive": ("▧", "#ff9a5c"),
-    "pptx":    ("▨", "#ff9a5c"), "text":    ("≡", "#aaaaaa"),
-    "data":    ("⌗", "#8fe0ff"), "unknown": ("•", "#888888"),
+    "image":   ("IMG",  EV["accent"]),  "video":   ("VID",  "#ff9a5c"),
+    "audio":   ("AUD",  EV["violet"]),  "pdf":     ("PDF",  EV["danger"]),
+    "word":    ("DOC",  "#6aa8ff"),     "excel":   ("XLS",  EV["success"]),
+    "code":    ("CODE", EV["warning"]), "archive": ("ZIP",  "#ff9a5c"),
+    "pptx":    ("PPT",  "#ff9a5c"),     "text":    ("TXT",  EV["text_med"]),
+    "data":    ("DATA", "#8fe0ff"),     "unknown": ("FILE", EV["text_dim"]),
 }
 _EXT_TO_CAT = {
     **dict.fromkeys(["jpg","jpeg","png","gif","webp","bmp","tiff","svg","ico"], "image"),
@@ -5096,13 +5095,13 @@ class _DropCanvas(QWidget):
         p.setFont(QFont("Courier New", 7))
         p.setPen(QPen(qcol("#1a4a5a"), 1))
         p.drawText(QRectF(0, cy + 24, W, 14), Qt.AlignmentFlag.AlignCenter,
-                   "Images Â· Video Â· Audio Â· PDF Â· Docs Â· Code Â· Data")
+                   "Images · Video · Audio · PDF · Docs · Code · Data")
 
     def _paint_drag_over(self, p, W, H):
         cx, cy = W / 2, H / 2
         p.setFont(QFont("Courier New", 20))
         p.setPen(QPen(qcol(C.PRI), 1))
-        p.drawText(QRectF(0, cy - 24, W, 32), Qt.AlignmentFlag.AlignCenter, "↓")
+        p.drawText(QRectF(0, cy - 24, W, 32), Qt.AlignmentFlag.AlignCenter, "â¬‡")
         p.setFont(QFont("Courier New", 8, QFont.Weight.Bold))
         p.setPen(QPen(qcol(C.PRI), 1))
         p.drawText(QRectF(0, cy + 12, W, 16), Qt.AlignmentFlag.AlignCenter, "Release to load")
@@ -5115,7 +5114,7 @@ class _DropCanvas(QWidget):
         ext_str  = path.suffix.upper().lstrip(".") or "FILE"
 
         block_x, block_w = 10, 60
-        p.setFont(QFont("Segoe UI Emoji", 22) if _OS == "Windows" else QFont("Arial", 22))
+        p.setFont(QFont(_UI_FONT, 11, QFont.Weight.Bold))
         p.setPen(QPen(qcol(icon_col), 1))
         p.drawText(QRectF(block_x, 0, block_w, H), Qt.AlignmentFlag.AlignCenter, icon)
 
@@ -5132,7 +5131,7 @@ class _DropCanvas(QWidget):
         p.setPen(QPen(qcol(C.TEXT_DIM), 1))
         p.drawText(QRectF(tx, H * 0.18 + 18, tw, 14),
                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                   f"{ext_str}  Â·  {size_str}")
+                   f"{ext_str}  ·  {size_str}")
 
         p.setFont(QFont("Courier New", 6))
         p.setPen(QPen(qcol("#1e5c6a"), 1))
@@ -5143,7 +5142,7 @@ class _DropCanvas(QWidget):
 
         p.setFont(QFont("Courier New", 9, QFont.Weight.Bold))
         p.setPen(QPen(qcol(C.RED, 180), 1))
-        p.drawText(QRectF(W - 34, 0, 28, H), Qt.AlignmentFlag.AlignCenter, "✕")
+        p.drawText(QRectF(W - 34, 0, 28, H), Qt.AlignmentFlag.AlignCenter, "âœ•")
 
     def mousePressEvent(self, e):
         z = self._z
@@ -5161,10 +5160,19 @@ class SetupOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"""
             SetupOverlay {{
-                background: rgba(0, 6, 10, 245);
-                border: 1px solid {C.BORDER_B};
-                border-radius: 6px;
+                background: {EV['surface_solid']};
+                border: 1px solid {EV['border_strong']};
+                border-radius: 18px;
             }}
+            QLabel {{ background: transparent; }}
+            QLineEdit {{
+                background: rgba(255,255,255,0.03);
+                color: {EV['text']};
+                border: 1px solid {EV['border']};
+                border-radius: 10px;
+                padding: 0 10px;
+            }}
+            QLineEdit:focus {{ border: 1px solid {EV['accent_line']}; }}
         """)
 
         defaults = defaults or {}
@@ -5178,54 +5186,54 @@ class SetupOverlay(QWidget):
         layout.setContentsMargins(30, 22, 30, 22)
         layout.setSpacing(8)
 
-        def _lbl(txt, font_size=9, bold=False, color=C.PRI,
+        def _lbl(txt, font_size=9, bold=False, color=EV["text"],
                  align=Qt.AlignmentFlag.AlignCenter):
             w = QLabel(txt)
             w.setAlignment(align)
-            w.setFont(QFont("Courier New", font_size,
-                            QFont.Weight.Bold if bold else QFont.Weight.Normal))
+            w.setFont(QFont(_UI_FONT, font_size,
+                            QFont.Weight.DemiBold if bold else QFont.Weight.Normal))
             w.setStyleSheet(f"color: {color}; background: transparent;")
             return w
 
-        layout.addWidget(_lbl("◈  INITIALISATION REQUIRED", 13, True))
-        layout.addWidget(_lbl("Configure E.V. before first boot.", 9, color=C.PRI_DIM))
+        layout.addWidget(_lbl("SET UP E.V.", 16, True))
+        layout.addWidget(_lbl("Add your API keys to finish setup.", 9, color=EV["text_dim"]))
         layout.addSpacing(6)
 
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"color: {C.BORDER};"); layout.addWidget(sep)
+        sep.setStyleSheet(f"color: {EV['border']};"); layout.addWidget(sep)
         layout.addSpacing(4)
 
-        layout.addWidget(_lbl("GEMINI API KEY", 8, color=C.TEXT_DIM,
+        layout.addWidget(_lbl("GEMINI API KEY", 8, color=EV["text_faint"],
                                align=Qt.AlignmentFlag.AlignLeft))
         self._key_input = QLineEdit()
         self._key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._key_input.setPlaceholderText("AIza…")
-        self._key_input.setFont(QFont("Courier New", 10))
+        self._key_input.setFont(QFont(_UI_FONT, 10))
         self._key_input.setFixedHeight(32)
         self._key_input.setStyleSheet(f"""
             QLineEdit {{
-                background: #000d12; color: {C.TEXT};
-                border: 1px solid {C.BORDER}; border-radius: 3px; padding: 4px 8px;
+                background: #000d12; color: {EV["text"]};
+                border: 1px solid {EV["border"]}; border-radius: 3px; padding: 4px 8px;
             }}
-            QLineEdit:focus {{ border: 1px solid {C.PRI}; }}
+            QLineEdit:focus {{ border: 1px solid {EV["accent"]}; }}
         """)
         layout.addWidget(self._key_input)
         self._key_input.setText((defaults.get("gemini_api_key") or "").strip())
         layout.addSpacing(8)
 
-        layout.addWidget(_lbl("OPENROUTER API KEY", 8, color=C.TEXT_DIM,
+        layout.addWidget(_lbl("OPENROUTER API KEY", 8, color=EV["text_dim"],
                        align=Qt.AlignmentFlag.AlignLeft))
         self._or_input = QLineEdit()
         self._or_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._or_input.setPlaceholderText("sk-or-…")
-        self._or_input.setFont(QFont("Courier New", 10))
+        self._or_input.setFont(QFont(_UI_FONT, 10))
         self._or_input.setFixedHeight(32)
         self._or_input.setStyleSheet(f"""
             QLineEdit {{
-                background: #000d12; color: {C.TEXT};
-                border: 1px solid {C.BORDER}; border-radius: 3px; padding: 4px 8px;
+                background: #000d12; color: {EV["text"]};
+                border: 1px solid {EV["border"]}; border-radius: 3px; padding: 4px 8px;
             }}
-            QLineEdit:focus {{ border: 1px solid {C.ACC2}; }}
+            QLineEdit:focus {{ border: 1px solid {EV["text_med"]}; }}
         """)
         layout.addWidget(self._or_input)
         self._or_input.setText((defaults.get("openrouter_api_key") or "").strip())
@@ -5233,23 +5241,23 @@ class SetupOverlay(QWidget):
         layout.addSpacing(12)
 
         sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
-        sep2.setStyleSheet(f"color: {C.BORDER};"); layout.addWidget(sep2)
+        sep2.setStyleSheet(f"color: {EV['border']};"); layout.addWidget(sep2)
         layout.addSpacing(4)
 
-        layout.addWidget(_lbl("OPERATING SYSTEM", 8, color=C.TEXT_DIM,
+        layout.addWidget(_lbl("OPERATING SYSTEM", 8, color=EV["text_dim"],
                                align=Qt.AlignmentFlag.AlignLeft))
         os_default = (defaults.get("os_system") or detected).strip().lower()
         if os_default not in {"windows", "mac", "linux"}:
             os_default = detected
         det_name = {"windows": "Windows", "mac": "macOS", "linux": "Linux"}[detected]
-        layout.addWidget(_lbl(f"Auto-detected: {det_name}", 8, color=C.ACC2,
+        layout.addWidget(_lbl(f"Auto-detected: {det_name}", 8, color=EV["text_med"],
                                align=Qt.AlignmentFlag.AlignLeft))
 
         os_row = QHBoxLayout(); os_row.setSpacing(6)
         self._os_btns: dict[str, QPushButton] = {}
         for key, label in [("windows", "Windows"), ("mac", "macOS"), ("linux", "Linux")]:
             btn = QPushButton(label)
-            btn.setFont(QFont("Courier New", 9, QFont.Weight.Bold))
+            btn.setFont(QFont(_UI_FONT, 9, QFont.Weight.DemiBold))
             btn.setFixedHeight(32)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda _, k=key: self._sel(k))
@@ -5259,25 +5267,26 @@ class SetupOverlay(QWidget):
         self._sel(os_default)
         layout.addSpacing(12)
 
-        self._status = QLabel("Enter your Gemini key to continue. OpenRouter remains optional; the assistant uses the shared app configuration.")
+        self._status = QLabel("The Gemini key is required. OpenRouter stays optional and is used as a fallback.")
         self._status.setWordWrap(True)
-        self._status.setFont(QFont("Courier New", 8))
+        self._status.setFont(QFont(_UI_FONT, 8))
         self._status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._status.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent;")
+        self._status.setStyleSheet(f"color: {EV['text_dim']}; background: transparent;")
         layout.addWidget(self._status)
         layout.addSpacing(8)
 
-        init_btn = QPushButton("◈  INITIALISE SYSTEMS")
-        init_btn.setFont(QFont("Courier New", 10, QFont.Weight.Bold))
+        init_btn = QPushButton("Initialise")
+        init_btn.setFont(QFont(_UI_FONT, 10, QFont.Weight.DemiBold))
         init_btn.setFixedHeight(36)
         init_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         init_btn.setStyleSheet(f"""
             QPushButton {{
-                background: transparent; color: {C.PRI};
-                border: 1px solid {C.PRI_DIM}; border-radius: 3px;
+                background: {EV['accent_soft']}; color: {EV['text']};
+                border: 1px solid {EV['accent_line']}; border-radius: 10px;
+                padding: 0 14px;
             }}
             QPushButton:hover {{
-                background: {C.PRI_GHO}; border: 1px solid {C.PRI};
+                background: rgba(92, 211, 255, 0.22);
             }}
         """)
         init_btn.clicked.connect(self._submit)
@@ -5285,23 +5294,24 @@ class SetupOverlay(QWidget):
 
     def _sel(self, key: str):
         self._sel_os = key
-        pal = {"windows":(C.PRI,"#001a22"),"mac":(C.ACC2,"#1a1400"),"linux":(C.GREEN,"#001a0d")}
+        pal = {"windows": (EV["accent"], "#04202c"), "mac": (EV["violet"], "#141a2e"), "linux": (EV["success"], "#04241a")}
         for k, btn in self._os_btns.items():
             if k == key:
                 fg, bg = pal[k]
                 btn.setStyleSheet(f"""
                     QPushButton {{
                         background: {fg}; color: {bg};
-                        border: none; border-radius: 3px; font-weight: bold;
+                        border: 1px solid {fg}; border-radius: 10px;
+                        font-weight: 600;
                     }}
                 """)
             else:
                 btn.setStyleSheet(f"""
                     QPushButton {{
-                        background: #000d12; color: {C.TEXT_DIM};
-                        border: 1px solid {C.BORDER}; border-radius: 3px;
+                        background: rgba(255,255,255,0.03); color: {EV['text_dim']};
+                        border: 1px solid {EV['border']}; border-radius: 10px;
                     }}
-                    QPushButton:hover {{ color: {C.TEXT}; border: 1px solid {C.BORDER_B}; }}
+                    QPushButton:hover {{ color: {EV['text']}; border: 1px solid {EV['border_strong']}; }}
                 """)
 
     def _submit(self):
@@ -5310,7 +5320,7 @@ class SetupOverlay(QWidget):
         if not key:
             self._key_input.setStyleSheet(
                 self._key_input.styleSheet() +
-                f" QLineEdit {{ border: 1px solid {C.RED}; }}"
+                f" QLineEdit {{ border: 1px solid {EV['danger']}; }}"
             )
             self._status.setText("Gemini key is required.")
             return
@@ -6576,7 +6586,7 @@ class MainWindow(QMainWindow):
         self._clock_tmr.start(1000)
         self._tick_clock()
 
-        # Metrik gÃ¼ncelleme timer'Ä±
+        # Metric refresh timer
         self._metric_tmr = QTimer(self)
         self._metric_tmr.timeout.connect(self._update_metrics)
         self._metric_tmr.start(2000)
@@ -8494,9 +8504,9 @@ class SystemConnectivitySidebar(QFrame):
         lay.setContentsMargins(18, 18, 18, 18)
         lay.setSpacing(14)
 
-        title = QLabel("STATUS")
-        title.setFont(QFont(_UI_FONT, 10, QFont.Weight.Bold))
-        title.setStyleSheet(f"color: {EV['text_faint']}; letter-spacing: 1.4px;")
+        title = QLabel("SYSTEM STATUS")
+        title.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
+        title.setStyleSheet(f"color: {C.WHITE}; letter-spacing: 1px;")
         lay.addWidget(title)
 
         self._status_card = QFrame()
@@ -8609,7 +8619,7 @@ class SystemConnectivitySidebar(QFrame):
 
     def refresh(self):
         if self._bridge() and hasattr(self._bridge(), "_win"):
-            version = "v1.0.0"
+            version = f"v{APP_VERSION}"
             platform_name = platform.system()
             provider = self._bridge()._win._load_app_settings().get("default_ai_provider", "Gemini")
             last_updated = time.strftime("%d %b %Y %H:%M")
@@ -8618,7 +8628,7 @@ class SystemConnectivitySidebar(QFrame):
             self._info_rows["Current AI Provider"].setText(provider)
             self._info_rows["Last Updated"].setText(last_updated)
         else:
-            self._info_rows["Version"].setText("v1.0.0")
+            self._info_rows["Version"].setText(f"v{APP_VERSION}")
             self._info_rows["Platform"].setText(platform.system())
             self._info_rows["Current AI Provider"].setText("Gemini")
             self._info_rows["Last Updated"].setText(time.strftime("%d %b %Y %H:%M"))
@@ -8686,12 +8696,12 @@ class SystemConnectivityPage(QWidget):
         h_lay = QVBoxLayout(header)
         h_lay.setContentsMargins(0, 0, 0, 0)
         h_lay.setSpacing(6)
-        title = QLabel("Settings")
-        title.setFont(QFont(_UI_FONT, 20, QFont.Weight.DemiBold))
-        title.setStyleSheet(f"color: {EV['text']}; letter-spacing: 0.3px;")
-        sub = QLabel("Providers, voice, automation, integrations and maintenance.")
-        sub.setFont(QFont(_UI_FONT, 9))
-        sub.setStyleSheet(f"color: {EV['text_dim']};")
+        title = QLabel("SYSTEM & CONNECTIVITY")
+        title.setFont(QFont("Segoe UI", 22, QFont.Weight.Black))
+        title.setStyleSheet(f"color: {C.WHITE}; letter-spacing: 1px;")
+        sub = QLabel("Manage your AI providers, connections and application preferences.")
+        sub.setFont(QFont("Segoe UI", 10))
+        sub.setStyleSheet(f"color: {C.TEXT_DIM};")
         h_lay.addWidget(title)
         h_lay.addWidget(sub)
         lay.addWidget(header)
@@ -9173,9 +9183,9 @@ class SystemConnectivityPage(QWidget):
         about_grid.setHorizontalSpacing(22)
         about_grid.setVerticalSpacing(8)
         entries = [
-            ("Version", "v1.0.0"),
-            ("Build Number", "2026.06.29"),
-            ("Release Date", "29 Jun 2026"),
+            ("Version", f"v{APP_VERSION}"),
+            ("Build Number", APP_BUILD),
+            ("Release Date", APP_RELEASED),
         ]
         self._about_values: dict[str, QLabel] = {}
         for idx, (label, value) in enumerate(entries):
@@ -9206,15 +9216,15 @@ class SystemConnectivityPage(QWidget):
         return card
 
     def _build_status_box(self):
-        box = self._card("Status", "")
+        box = self._card("System Status", "")
         lay = box.layout()
-        self._sys_online = QLabel("● Online")
-        self._sys_online.setStyleSheet(f"color: {EV['success']}; font-weight: 700;")
-        self._sys_note = QLabel("E.V. is connected.")
+        self._sys_online = QLabel("🟢 System Online")
+        self._sys_online.setStyleSheet("color: #3ddc97; font-weight: 700;")
+        self._sys_note = QLabel("All systems are operational.")
         self._sys_note.setStyleSheet(f"color: {C.TEXT_MED};")
         lay.addWidget(self._sys_online)
         lay.addWidget(self._sys_note)
-        self._sys_version = QLabel("v1.0.0")
+        self._sys_version = QLabel(f"v{APP_VERSION}")
         self._sys_platform = QLabel(platform.system())
         self._sys_provider = QLabel("Gemini")
         self._sys_updated = QLabel(time.strftime("%d %b %Y %H:%M"))
@@ -9227,7 +9237,7 @@ class SystemConnectivityPage(QWidget):
         return box
 
     def _build_quick_actions_box(self):
-        box = self._card("Maintenance", "Tools for this installation.")
+        box = self._card("Quick Actions", "")
         lay = box.layout()
         actions = [
             ("Restart E.V.", QStyle.StandardPixmap.SP_BrowserReload, self._restart_app),
@@ -9250,9 +9260,9 @@ class SystemConnectivityPage(QWidget):
         lay = QVBoxLayout(box)
         lay.setContentsMargins(16, 14, 16, 14)
         lay.setSpacing(8)
-        title = QLabel("Keep your keys private")
+        title = QLabel("Security Tip")
         title.setStyleSheet("color: #ffb648; font-weight: 700;")
-        body = QLabel("API keys stay in config/api_keys.json on this machine. Never share them.")
+        body = QLabel('"Never share your API keys with anyone."')
         body.setWordWrap(True)
         body.setStyleSheet(f"color: {C.TEXT_MED};")
         lay.addWidget(title)
@@ -9556,8 +9566,8 @@ class SystemConnectivityPage(QWidget):
             desktop_dir.mkdir(parents=True, exist_ok=True)
             shortcut_path = desktop_dir / "E.V.lnk"
             
-            # Base variables
-            base_dir = Path(os.path.abspath("."))
+            # Base variables — resolved from the app location, not the CWD
+            base_dir = Path(BASE_DIR)
             script_path = base_dir / "main.py"
             icon_path = base_dir / "assets" / "ev_logo.ico"
             
@@ -9589,7 +9599,9 @@ class SystemConnectivityPage(QWidget):
                 "$Shortcut.Save()",
             ])
             
-            ps1_path = base_dir / "config" / "create_desktop_shortcut.ps1"
+            # Written to a runtime file; config/create_desktop_shortcut.ps1 is the
+            # portable sample that ships with the project.
+            ps1_path = base_dir / "config" / ".runtime_shortcut.ps1"
             ps1_path.write_text(ps1_script, encoding="utf-8")
             
             subprocess.run(

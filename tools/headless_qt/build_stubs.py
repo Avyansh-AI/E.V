@@ -13,9 +13,6 @@ QTLIB = Path(subprocess.run([PY, "-c",
     capture_output=True, text=True).stdout.strip())
 PLUGINS = QTLIB.parent / "plugins"
 OUT = Path("/tmp/combo")
-OUT.mkdir(parents=True, exist_ok=True)
-WORK = Path("/tmp/glstub")
-WORK.mkdir(parents=True, exist_ok=True)
 
 TARGETS = ["libEGL.so.1", "libGL.so.1", "libdbus-1.so.3", "libxkbcommon.so.0"]
 SEARCH_DIRS = ["/lib/x86_64-linux-gnu", "/usr/lib/x86_64-linux-gnu", "/lib64", "/usr/lib64",
@@ -101,14 +98,14 @@ for target, symbols in wanted.items():
         lines.append(f'__asm__(".symver {internal}, {name}@@{version}");' if version
                      else f'__asm__(".symver {internal}, {name}@@EVBASE");')
     lines.append('__attribute__((visibility("default"))) void ev_stub_anchor(void) { }')
-    src = WORK / f"{target}.c"
+    src = Path("/tmp/glstub") / f"{target}.c"
     src.write_text("\n".join(lines) + "\n")
-    nodes = "".join(f"  {v} {{ }};\n" for v in versions)
-    (WORK / f"{target}.map").write_text('EVBASE { };\n' + nodes)
+    nodes = "".join(f'  "{v}" {{ }};\n' for v in versions)
+    (Path("/tmp/glstub") / f"{target}.map").write_text('EVBASE { };\n' + nodes)
     out = OUT / target
     r = subprocess.run(["gcc", "-shared", "-fPIC", "-O0", str(src), "-o", str(out),
                         f"-Wl,-soname,{target}",
-                        f"-Wl,--version-script={WORK / (target + '.map')}"],
+                        f"-Wl,--version-script={Path('/tmp/glstub') / (target + '.map')}"],
                        capture_output=True, text=True)
     print(target, len(symbols), "symbols,", len(versions), "versions",
           "ok" if r.returncode == 0 else r.stderr[:300])

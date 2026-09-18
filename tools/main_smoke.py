@@ -16,12 +16,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 # --- minimal stand-ins for the Windows-only stack -------------------------
-sd = types.ModuleType("sounddevice")
-sd.InputStream = object; sd.OutputStream = object
-sd.query_devices = lambda *a, **k: []; sd.CallbackFlags = object; sd.default = object()
-sd.sleep = lambda *a, **k: None
-sys.modules["sounddevice"] = sd
-
+# sounddevice is imported optionally by main.py, so it is deliberately left
+# alone here: the script exercises the real missing-audio fallback path.
 wr = types.ModuleType("winreg")
 for name in ("HKEY_CLASSES_ROOT","HKEY_CURRENT_USER","HKEY_LOCAL_MACHINE","KEY_READ","KEY_WRITE",
              "REG_SZ","HKEY_CLASSES_ROOT"):

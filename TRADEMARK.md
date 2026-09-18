@@ -1,7 +1,7 @@
 # E.V. Trademark Notice
 
-`E.V.`, `E.V.`, `E.V.`, the E.V. logo, and any related
-brand assets are trademarks or trade dress associated with Suryaansh Tiwari.
+The name `E.V.`, the E.V. wordmark and logo, and any related brand
+assets are trademarks or trade dress associated with Suryaansh Tiwari.
 
 ## What this means
 

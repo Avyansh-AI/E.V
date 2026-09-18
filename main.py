@@ -18,7 +18,15 @@ try:
 except Exception:
     pass
 
-import sounddevice as sd
+# sounddevice needs PortAudio at runtime; keep the app importable without it so
+# the interface still starts and the reason is reported instead of crashing.
+try:
+    import sounddevice as sd
+    _AUDIO_ERROR: str | None = None
+except Exception as _audio_exc:  # pragma: no cover - depends on host audio stack
+    sd = None
+    _AUDIO_ERROR = f"{type(_audio_exc).__name__}: {_audio_exc}"
+
 from google import genai
 from google.genai import types
 from ui import EVUI
@@ -143,7 +151,8 @@ def _ensure_desktop_shortcut() -> None:
             return value.replace("'", "''")
 
         icon_value = str(icon_path) if icon_path and icon_path.exists() else ""
-        ps1_path = BASE_DIR / "config" / "create_desktop_shortcut.ps1"
+        # Generated at runtime so the shipped sample script stays portable.
+        ps1_path = BASE_DIR / "config" / ".runtime_shortcut.ps1"
         ps1_script = "\n".join([
             "$WshShell = New-Object -ComObject WScript.Shell",
             f"$Shortcut = $WshShell.CreateShortcut('{_ps_escape(str(shortcut_path))}')",
@@ -167,22 +176,6 @@ def _ensure_desktop_shortcut() -> None:
         _startup_log(f"desktop shortcut created at {shortcut_path}")
     except Exception as exc:
         _startup_log(f"desktop shortcut creation skipped: {exc}")
-
-
-def _spoken_tool_error(tool_name: str, detail: str) -> str:
-    """Plain-language spoken error. Raw technical text only reaches the log."""
-    friendly = {
-        "browser_control": "The browser could not complete that step.",
-        "open_app": "That application would not open.",
-        "website_builder": "The website build stopped early.",
-        "pdf_document": "The PDF could not be written.",
-        "word_document": "The Word document could not be saved.",
-        "file_controller": "The file operation did not finish.",
-        "file_processor": "The file could not be read.",
-        "screen_processor": "The screen could not be read.",
-        "send_message": "The message was not sent.",
-    }.get(tool_name, "That step did not work.")
-    return f"{friendly} I logged the details."
 
 
 def _load_system_prompt() -> str:
@@ -1630,7 +1623,7 @@ class EVLive:
     def speak_error(self, tool_name: str, error: str):
         short = str(error)[:120]
         self.ui.write_log(f"ERR: {tool_name} — {short}")
-        self.speak(f"{_spoken_tool_error(tool_name, short)}")
+        self.speak(f"Sir, {tool_name} encountered an error. {short}")
 
     def _build_config(self) -> types.LiveConnectConfig:
         from datetime import datetime
@@ -1900,6 +1893,9 @@ class EVLive:
             await self.session.send_realtime_input(media=msg)
 
     async def _listen_audio(self):
+        if sd is None:
+            print(f"[E.V.] Voice input unavailable ({_AUDIO_ERROR}).")
+            return
         print("[E.V.] 🎤 Mic started")
         loop = asyncio.get_event_loop()
 
@@ -2002,6 +1998,9 @@ class EVLive:
             raise
 
     async def _play_audio(self):
+        if sd is None:
+            print(f"[E.V.] Voice output unavailable ({_AUDIO_ERROR}).")
+            return
         print("[E.V.] 🔊 Play started")
         loop = asyncio.get_event_loop()
 
@@ -2155,6 +2154,13 @@ def main():
 
     ui.show_main()
     _startup_log("ui shown")
+
+    if sd is None:
+        _startup_log(f"audio backend missing: {_AUDIO_ERROR}")
+        try:
+            ui.write_log("SYS: Voice is unavailable - install sounddevice and PortAudio to enable the microphone.")
+        except Exception:
+            pass
 
     # Initialize plugin manager and load any plugins from ./plugins
     try:

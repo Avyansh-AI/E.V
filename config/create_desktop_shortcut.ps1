@@ -1,35 +1,35 @@
-# Create a Desktop shortcut for E.V.
-# Works from wherever the project is checked out: the paths are derived from
-# this script's own location, so nothing here is machine-specific.
+# Create a desktop shortcut for E.V. on the current user's desktop.
+# Run it from the project folder:  powershell -ExecutionPolicy Bypass -File config\create_desktop_shortcut.ps1
+# Every path is derived from this script's location, so it works wherever the
+# project is installed. No machine-specific paths are stored in the repository.
 
 $ErrorActionPreference = 'Stop'
 
-$projectRoot = Split-Path -Parent $PSScriptRoot      # ...\E.V\config -> ...\E.V
-if (-not (Test-Path (Join-Path $projectRoot 'main.py'))) {
-    throw "main.py was not found in $projectRoot. Run this script from the project's config folder."
+$ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+$Python = Join-Path $ProjectRoot '.venv\Scripts\python.exe'
+if (-not (Test-Path $Python)) {
+    $Python = 'python'   # fall back to whatever Python is on PATH
 }
 
-$python = Join-Path $projectRoot '.venv\Scripts\pythonw.exe'
-if (-not (Test-Path $python)) {
-    $python = Join-Path $projectRoot '.venv\Scripts\python.exe'
-}
-if (-not (Test-Path $python)) {
-    throw "No virtual environment found at $projectRoot\.venv. Create it first: python -m venv .venv"
+$Main = Join-Path $ProjectRoot 'main.py'
+if (-not (Test-Path $Main)) {
+    throw "main.py was not found in $ProjectRoot. Run this script from inside the E.V. project folder."
 }
 
-$mainScript = Join-Path $projectRoot 'main.py'
-$icon       = Join-Path $projectRoot 'assets\ev_logo.ico'
-$desktop    = [Environment]::GetFolderPath('Desktop')
-$shortcutPath = Join-Path $desktop 'E.V..lnk'
+$Icon = Join-Path $ProjectRoot 'assets\ev_logo.ico'
+$Desktop = [Environment]::GetFolderPath('Desktop')
+$ShortcutPath = Join-Path $Desktop 'E.V..lnk'
 
-$shell = New-Object -ComObject WScript.Shell
-$shortcut = $shell.CreateShortcut($shortcutPath)
-$shortcut.TargetPath       = $python
-$shortcut.Arguments        = '"{0}"' -f $mainScript
-$shortcut.WorkingDirectory = $projectRoot
-$shortcut.WindowStyle      = 7
-$shortcut.Description      = 'E.V. — Personal AI Assistant'
-if (Test-Path $icon) { $shortcut.IconLocation = "$icon,0" }
-$shortcut.Save()
+$WshShell = New-Object -ComObject WScript.Shell
+$Shortcut = $WshShell.CreateShortcut($ShortcutPath)
+$Shortcut.TargetPath = $Python
+$Shortcut.Arguments = '"' + $Main + '"'
+$Shortcut.WorkingDirectory = $ProjectRoot
+$Shortcut.WindowStyle = 7          # start minimized to the tray
+$Shortcut.Description = 'Launch E.V. — personal AI assistant'
+if (Test-Path $Icon) {
+    $Shortcut.IconLocation = "$Icon,0"
+}
+$Shortcut.Save()
 
-Write-Host "Shortcut created: $shortcutPath"
+Write-Host "Desktop shortcut created: $ShortcutPath"

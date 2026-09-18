@@ -10,8 +10,14 @@ import threading
 import cv2
 import mss
 import mss.tools
-import sounddevice as sd
 import numpy as np
+
+# Voice output is optional here: PortAudio may be missing, in which case screen
+# analysis still runs and simply stays silent.
+try:
+    import sounddevice as sd
+except Exception:  # pragma: no cover - depends on host audio stack
+    sd = None
 from pathlib import Path
 
 try:
@@ -266,6 +272,9 @@ class _LiveSession:
             await asyncio.sleep(0.3)
 
     async def _play_loop(self):
+        if sd is None:
+            print("[ScreenProcess] Audio output unavailable; skipping playback.")
+            return
         stream = sd.RawOutputStream(
             samplerate=RECEIVE_SAMPLE_RATE,
             channels=CHANNELS,
